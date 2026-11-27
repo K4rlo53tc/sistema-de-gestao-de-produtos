@@ -7,6 +7,8 @@ import CJ_DEV.Sistema.de.Gestao.de.Produtos.exception.ProdutoNaoEncontradoExcept
 import CJ_DEV.Sistema.de.Gestao.de.Produtos.model.Produto;
 import CJ_DEV.Sistema.de.Gestao.de.Produtos.repository.ProdutoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +19,7 @@ import java.util.List;
 public class ProdutoService {
     private final ProdutoRepository produtoRepository;
 
-    public ProdutoResponse cadastrarProduto(ProdutoRequest produtoRequest){
+    public ProdutoResponse cadastrarProduto(ProdutoRequest produtoRequest) {
         Produto produto = Produto.builder()
                 .nome(limpar(produtoRequest.nome()))
                 .descricao(limpar(produtoRequest.descricao()))
@@ -29,21 +31,18 @@ public class ProdutoService {
         return ProdutoResponse.from(produtoSalvo);
     }
 
-    public List<ProdutoResponse> listarProdutos() {
-        return produtoRepository.findAll()
-                .stream()
-                .map(ProdutoResponse::from)
-                .toList();
+    public Page<ProdutoResponse> listarProdutos(Pageable pageable) {
+        return produtoRepository.findAll(pageable).map(ProdutoResponse::from);
     }
 
 
-    public ProdutoResponse buscarPorId(Long id){
+    public ProdutoResponse buscarPorId(Long id) {
         Produto produto = buscarOuFalhar(id);
         return ProdutoResponse.from(produto);
     }
 
     @Transactional
-    public ProdutoResponse atualizarProduto(Long id, ProdutoRequest produtoRequest){
+    public ProdutoResponse atualizarProduto(Long id, ProdutoRequest produtoRequest) {
         Produto produto = buscarOuFalhar(id);
         produto.setNome(limpar(produtoRequest.nome()));
         produto.setDescricao(limpar(produtoRequest.descricao()));
@@ -68,7 +67,7 @@ public class ProdutoService {
 
 
     @Transactional
-    public void excluirProduto(Long id){
+    public void excluirProduto(Long id) {
         Produto produto = buscarOuFalhar(id);
         produtoRepository.delete(produto);
     }

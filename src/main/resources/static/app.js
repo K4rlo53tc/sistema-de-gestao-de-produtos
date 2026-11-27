@@ -4,6 +4,7 @@
 // ============================================================
 
 const API = "/api/produtos";
+const TAMANHO_PAGINA = 5;
 
 // ---------- Elementos da página (seleccionados uma só vez) ----------
 const form = document.getElementById("form-produto");
@@ -21,9 +22,14 @@ const tbody = document.getElementById("tabela-produtos");
 const vazio = document.getElementById("vazio");
 const contador = document.getElementById("contador");
 const pesquisa = document.getElementById("pesquisa");
+const btnAnterior = document.getElementById("btn-anterior");
+const btnSeguinte = document.getElementById("btn-seguinte");
+const infoPagina = document.getElementById("info-pagina");
 
-// Lista actual em memória (para pesquisar e editar sem pedir ao servidor)
-let produtos = [];
+// ---------- Estado ----------
+let produtos = [];        // produtos da página actual
+let paginaAtual = 0;      // a API conta páginas a partir de 0
+let totalProdutos = 0;    // total na base de dados
 
 // ---------- Mensagens ao utilizador ----------
 function mostrarMensagem(texto, tipo) {
@@ -32,7 +38,6 @@ function mostrarMensagem(texto, tipo) {
 }
 
 // Os erros de validação do backend chegam como { campo: "mensagem" }.
-// Esta função mostra-os em lista e marca os campos a vermelho.
 function mostrarErros(erros) {
     mensagem.className = "erro";
     mensagem.textContent = "";
@@ -65,9 +70,9 @@ async function tratarErro(resposta) {
     }
 
     if (corpo && corpo.erro) {
-        mostrarMensagem(corpo.erro, "erro");               // ex.: 404 não encontrado
+        mostrarMensagem(corpo.erro, "erro");
     } else if (corpo && resposta.status === 400) {
-        mostrarErros(corpo);                                // erros de validação por campo
+        mostrarErros(corpo);
     } else {
         mostrarMensagem("Erro inesperado (código " + resposta.status + ").", "erro");
     }
@@ -98,6 +103,7 @@ function criarCelula(texto, classe) {
 function desenharTabela() {
     const termo = pesquisa.value.trim().toLowerCase();
 
+    // A pesquisa filtra só os produtos da página actual.
     const visiveis = produtos.filter(p =>
         p.nome.toLowerCase().includes(termo) ||
         p.categoria.toLowerCase().includes(termo)
@@ -137,22 +143,38 @@ function desenharTabela() {
         tbody.appendChild(tr);
     });
 
-    contador.textContent = "(" + visiveis.length + ")";
+    // Sem pesquisa mostra o total da base de dados; com pesquisa, os resultados.
+    contador.textContent = "(" + (termo === "" ? totalProdutos : visiveis.length) + ")";
     vazio.hidden = visiveis.length > 0;
 }
 
 // ---------- Operações na API ----------
 
-// LISTAR (GET)
+// LISTAR (GET), uma página de cada vez
 async function carregarProdutos() {
     try {
-        const resposta = await fetch(API);
+        const resposta = await fetch(API + "?page=" + paginaAtual + "&size=" + TAMANHO_PAGINA);
         if (!resposta.ok) {
             await tratarErro(resposta);
             return;
         }
-        produtos = await resposta.json();
+
+        const dados = await resposta.json();
+
+        // Se a página pedida já não existe (ex.: apagou o último da página),
+        // recua para a última página que existe.
+        if (dados.content.length === 0 && paginaAtual > 0) {
+            paginaAtual = Math.max(dados.totalPages - 1, 0);
+            return carregarProdutos();
+        }
+
+        produtos = dados.content;
+        totalProdutos = dados.totalElements;
         desenharTabela();
+
+        infoPagina.textContent = "Página " + (dados.number + 1) + " de " + Math.max(dados.totalPages, 1);
+        btnAnterior.disabled = dados.first;
+        btnSeguinte.disabled = dados.last;
     } catch (e) {
         mostrarMensagem("Não foi possível ligar ao servidor.", "erro");
     }
@@ -253,6 +275,16 @@ btnCancelar.addEventListener("click", () => {
 });
 
 pesquisa.addEventListener("input", desenharTabela);
+
+btnAnterior.addEventListener("click", () => {
+    paginaAtual--;
+    carregarProdutos();
+});
+
+btnSeguinte.addEventListener("click", () => {
+    paginaAtual++;
+    carregarProdutos();
+});
 
 // ---------- Arranque ----------
 carregarProdutos();
